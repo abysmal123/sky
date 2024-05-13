@@ -8,10 +8,12 @@ import com.sky.dto.DishDTO;
 import com.sky.dto.DishPageQueryDTO;
 import com.sky.entity.Dish;
 import com.sky.entity.DishFlavor;
+import com.sky.entity.Setmeal;
 import com.sky.exception.DeletionNotAllowedException;
 import com.sky.mapper.DishFlavorMapper;
 import com.sky.mapper.DishMapper;
 import com.sky.mapper.SetmealDishMapper;
+import com.sky.mapper.SetmealMapper;
 import com.sky.result.PageResult;
 import com.sky.service.DishService;
 import com.sky.vo.DishVO;
@@ -20,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -32,6 +35,8 @@ public class DishServiceImpl implements DishService {
     private DishFlavorMapper dishFlavorMapper;
     @Autowired
     private SetmealDishMapper setmealDishMapper;
+    @Autowired
+    private SetmealMapper setmealMapper;
 
     /**
      * 新增菜品和对应口味
@@ -51,7 +56,7 @@ public class DishServiceImpl implements DishService {
 
         // 向口味表插入n条数据
         List<DishFlavor> flavors = dishDTO.getFlavors();
-        if (flavors != null && flavors.size() > 0) {
+        if (flavors != null && !flavors.isEmpty()) {
             flavors.forEach(e -> e.setDishId(id));
             dishFlavorMapper.insertBatch(flavors);
         }
@@ -85,7 +90,7 @@ public class DishServiceImpl implements DishService {
         }
 
         // 判断是否存在套餐关联的菜品
-        List<Long> setmealIds = setmealDishMapper.getSetmealIdsByIds(ids);
+        List<Long> setmealIds = setmealDishMapper.getSetmealIdsByDishIds(ids);
         if (setmealIds != null && !setmealIds.isEmpty()) {
             throw new DeletionNotAllowedException(MessageConstant.DISH_BE_RELATED_BY_SETMEAL);
         }
@@ -95,5 +100,89 @@ public class DishServiceImpl implements DishService {
 
         // 删除菜品关联的口味数据
         dishFlavorMapper.deleteByDishIds(ids);
+    }
+
+    /**
+     * 根据id查询菜品及对应的口味
+     * @param id
+     * @return
+     */
+    @Override
+    public DishVO getByIdWithFlavor(Long id) {
+        // 根据id查询菜品数据
+        Dish dish = dishMapper.getById(id);
+
+        // 根据菜品id查询口味数据
+        List<DishFlavor> dishFlavors =  dishFlavorMapper.getByDishId(id);
+
+        // 将查询到的数据封装到VO
+        DishVO dishVO = new DishVO();
+        BeanUtils.copyProperties(dish, dishVO);
+        dishVO.setFlavors(dishFlavors);
+
+        return dishVO;
+    }
+
+    /**
+     * 修改菜品
+     * @param dishDTO
+     */
+    @Transactional
+    @Override
+    public void updateWithFlavor(DishDTO dishDTO) {
+        Dish dish = new Dish();
+        BeanUtils.copyProperties(dishDTO, dish);
+
+        // 修改菜品表基本信息
+        dishMapper.update(dish);
+
+        // 删除原有的口味数据
+        dishFlavorMapper.deleteByDishIds(Collections.singletonList(dishDTO.getId()));
+
+        // 重新插入口味数据
+        List<DishFlavor> flavors = dishDTO.getFlavors();
+        if (flavors != null && !flavors.isEmpty()) {
+            flavors.forEach(e -> e.setDishId(dishDTO.getId()));
+            dishFlavorMapper.insertBatch(flavors);
+        }
+    }
+
+    /**
+     * 根据分类id查询菜品
+     * @param categoryId
+     * @return
+     */
+    @Override
+    public List<Dish> getByCategoryId(Long categoryId) {
+        return dishMapper.getByCategoryId(categoryId);
+    }
+
+    /**
+     * 菜品起售停售
+     * @param status
+     * @param id
+     */
+    @Override
+    public void startOrStop(Integer status, Long id) {
+        // 更新菜品状态信息
+        Dish dish = Dish.builder()
+                .status(status)
+                .id(id)
+                .build();
+        dishMapper.update(dish);
+
+        // 如果停售菜品，应当停售所有包含该菜品的套餐
+        if (Objects.equals(status, StatusConstant.DISABLE)) {
+            List<Long> setmealIds = setmealDishMapper.getSetmealIdsByDishIds(Collections.singletonList(id));
+            if (setmealIds != null && !setmealIds.isEmpty()) {
+                for (Long setmealId : setmealIds) {
+                    Setmeal setmeal = Setmeal.builder()
+                            .id(setmealId)
+                            .status(StatusConstant.DISABLE)
+                            .build();
+                    setmealMapper.update(setmeal);
+                }
+            }
+        }
     }
 }
