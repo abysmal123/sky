@@ -42,6 +42,8 @@ public class AutoFillAspect {
 
         LocalDateTime now = LocalDateTime.now();
         Long currentId = BaseContext.getCurrentId();
+        // 取去id后释放threadLocal对象，防止内存泄漏
+        BaseContext.removeCurrentId();
 
         Object entity = args[0];
         Class<?> clazz = entity.getClass();
