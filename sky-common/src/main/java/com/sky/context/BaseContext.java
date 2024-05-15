@@ -9,10 +9,13 @@ public class BaseContext {
     }
 
     public static Long getCurrentId() {
-        return threadLocal.get();
+        Long currentId = threadLocal.get();
+        // 取出id后释放threadLocal对象，防止内存泄漏
+        removeCurrentId();
+        return currentId;
     }
 
-    public static void removeCurrentId() {
+    private static void removeCurrentId() {
         threadLocal.remove();
     }
 
