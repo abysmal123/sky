@@ -33,10 +33,10 @@ public class OrderServiceImpl implements OrderService {
     private AddressBookMapper addressBookMapper;
     @Autowired
     private ShoppingCartMapper shoppingCartMapper;
-    @Autowired
-    private UserMapper userMapper;
-    @Autowired
-    private WeChatPayUtil weChatPayUtil;
+//    @Autowired
+//    private UserMapper userMapper;
+//    @Autowired
+//    private WeChatPayUtil weChatPayUtil;
 
     /**
      * 用户下单
